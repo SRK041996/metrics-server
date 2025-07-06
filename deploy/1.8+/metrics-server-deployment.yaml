@@ -38,7 +38,7 @@ spec:
         - --metric-resolution=15s
         - --kubelet-insecure-tls
         ports:
-        - name: https
+        - name: http
           containerPort: 443
           protocol: TCP
         livenessProbe:
