@@ -1,50 +1,59 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    k8s-app: metrics-server
   name: metrics-server
   namespace: kube-system
+  labels:
+    k8s-app: metrics-server
 spec:
   selector:
     matchLabels:
       k8s-app: metrics-server
   strategy:
+    type: RollingUpdate
     rollingUpdate:
       maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
         k8s-app: metrics-server
     spec:
+      serviceAccountName: metrics-server
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
       containers:
-      - args:
+      - name: metrics-server
+        image: registry.k8s.io/metrics-server/metrics-server:v0.5.0
+        imagePullPolicy: IfNotPresent
+        args:
         - --cert-dir=/tmp
         - --secure-port=443
         - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
         - --kubelet-use-node-status-port
         - --metric-resolution=15s
         - --kubelet-insecure-tls
-        image: k8s.gcr.io/metrics-server/metrics-server:v0.5.0
-        imagePullPolicy: IfNotPresent
+        ports:
+        - name: https
+          containerPort: 443
+          protocol: TCP
         livenessProbe:
-          failureThreshold: 3
           httpGet:
             path: /livez
             port: https
             scheme: HTTPS
-          periodSeconds: 10
-        name: metrics-server
-        ports:
-        - containerPort: 443
-          name: https
-          protocol: TCP
-        readinessProbe:
           failureThreshold: 3
+          periodSeconds: 10
+        readinessProbe:
           httpGet:
             path: /readyz
             port: https
             scheme: HTTPS
+          failureThreshold: 3
           initialDelaySeconds: 20
           periodSeconds: 10
         resources:
@@ -56,12 +65,8 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
         volumeMounts:
-        - mountPath: /tmp
-          name: tmp-dir
-      nodeSelector:
-        kubernetes.io/os: linux
-      priorityClassName: system-cluster-critical
-      serviceAccountName: metrics-server
+        - name: tmp-dir
+          mountPath: /tmp
       volumes:
-      - emptyDir: {}
-        name: tmp-dir
+      - name: tmp-dir
+        emptyDir: {}
